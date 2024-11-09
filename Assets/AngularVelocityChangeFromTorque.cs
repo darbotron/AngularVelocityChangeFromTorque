@@ -23,7 +23,7 @@ public class AngularVelocityChangeFromTorque : MonoBehaviour
 		// setting rigidbody.inertiaTensor to pretty much any non-uniform value
 		// causes most of the tests to fail
 		//
-		rigidbody.inertiaTensor = new Vector3( 3f, 1f, 2f );
+		rigidbody.inertiaTensor = new Vector3( 2f, 2f, 2f );
 
 		// haven't managed to get it to work with this yet so setting to identity for now :sweatsmile:
 		rigidbody.inertiaTensorRotation = Quaternion.identity;
@@ -98,6 +98,34 @@ public class AngularVelocityChangeFromTorque : MonoBehaviour
 			yield return TestOneFrameOfTorque( rigidbody, initialOrientation, torqueToApply: new Vector3( 3f, 0f, 0f ) );
 			yield return TestOneFrameOfTorque( rigidbody, initialOrientation, torqueToApply: new Vector3( 0f, 3f, 0f ) );
 			yield return TestOneFrameOfTorque( rigidbody, initialOrientation, torqueToApply: new Vector3( 0f, 0f, 3f ) );
+		}
+
+		//
+		// rotate the inertia tensor...
+		//
+
+		{
+			rigidbody.inertiaTensorRotation = Quaternion.Euler( 90f, 0f, 0f );
+
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 3f, 0f, 0f ) );
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 0f, 3f, 0f ) );
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 0f, 0f, 3f ) );
+		}
+
+		{
+			rigidbody.inertiaTensorRotation = Quaternion.Euler( 0f, 90f, 0f );
+
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 3f, 0f, 0f ) );
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 0f, 3f, 0f ) );
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 0f, 0f, 3f ) );
+		}
+
+		{
+			rigidbody.inertiaTensorRotation = Quaternion.Euler( 0f, 0f, 90f );
+
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 3f, 0f, 0f ) );
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 0f, 3f, 0f ) );
+			yield return TestOneFrameOfTorque( rigidbody, Quaternion.identity, torqueToApply: new Vector3( 0f, 0f, 3f ) );
 		}
 
 		rigidbody.inertiaTensorRotation = Quaternion.identity;
@@ -186,20 +214,13 @@ public class AngularVelocityChangeFromTorque : MonoBehaviour
 		//		world space (i.e. same space as accumulated torque)
 
 		// currently not taking account of manuallyScaledRigidbody.inertiaTensorRotation
-		var diagonalMoiTensor = rigidbody.inertiaTensor;
-		var moiMatrix         = Matrix4x4.zero;
-
-		// Unity matrix format is columns hold basis axes, brackets are [row, column]
-		moiMatrix[ 0, 0 ] = diagonalMoiTensor.x;
-		moiMatrix[ 1, 1 ] = diagonalMoiTensor.y;
-		moiMatrix[ 2, 2 ] = diagonalMoiTensor.z;
-		moiMatrix[ 3, 3 ] = 1f;
+		var moiTensorMatrixLocal = CalculateInertiaTensorMatrix( rigidbody.inertiaTensor, rigidbody.inertiaTensorRotation );
 
 		// don't want any scale or translation here so generating a local -> world matrix from just rotation
 		var localToWorldRotationMatrix = Matrix4x4.Rotate( rigidbody.transform.rotation );
 
 		// need to include rigidbody.inertiaTensorRotation; but whenever I try to incorporate it I end up wildly off straight away
-		var inertiaMatrixInverseWorldSpace = moiMatrix.inverse * localToWorldRotationMatrix;
+		var inertiaMatrixInverseWorldSpace = moiTensorMatrixLocal.inverse * localToWorldRotationMatrix;
 
 		// there's no position in inertiaMatrixInverseWorldSpace so it _should_ be just rotation?
 		var angularAcceleration  = inertiaMatrixInverseWorldSpace.MultiplyVector( accumulatedTorqueWorldSpace );
@@ -207,5 +228,17 @@ public class AngularVelocityChangeFromTorque : MonoBehaviour
 
 		// seems rigidbody.angularVelocity is in Rigidbody local space?
 		return rigidbody.transform.localToWorldMatrix.inverse.MultiplyVector( deltaAngularVelocity );
+	}
+
+	// see link for additional info, morelinks and explanation of how Physx stores & remakes the inertiatensor
+	// https://discussions.unity.com/t/inertia-tensor-in-matrix-form-from-inertiatensor-and-inertiatensorrotation/802114/13
+	//
+	// note the tensor is 3x3 - will be in the 3x3 part of the returned 4x4
+	public static Matrix4x4 CalculateInertiaTensorMatrix( Vector3 inertiaTensor, Quaternion inertiaTensorRotation )
+	{
+		var tensorRotationMatrix = Matrix4x4.Rotate( inertiaTensorRotation );
+		var tensorDiagonalMatrix = Matrix4x4.Scale( inertiaTensor );          // scale basically puts inertiaTensor x,y,z into the diagonal
+
+		return tensorRotationMatrix * tensorDiagonalMatrix * tensorRotationMatrix.transpose; // R is orthogonal, so R.transpose == R.inverse
 	}
 }
