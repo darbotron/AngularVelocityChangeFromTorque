@@ -86,7 +86,9 @@ public class AngularVelocityChangeFromTorque : MonoBehaviour
 		}
 
 		//
-		// tests below here fail for pretty much any inertia tensor other than ( 1, 1, 1 )
+		// tests below here fail for pretty much any non-uniform inertia tensor ( 1, 1, 1 )
+		// TL;DR: the way the intertia tensor works in Unity physics takes some liberties wrt actual physics.
+		// see info on Unity Discussions: https://discussions.unity.com/t/calculating-the-angular-velocity-change-of-a-rigidbody-given-torque-and-timestep/1550314/4
 		//
 
 		{
@@ -204,7 +206,7 @@ public class AngularVelocityChangeFromTorque : MonoBehaviour
     }
 
     //------------------------------------------------------------------------
-    Vector3 CalculateRigidBodyAngularVelocityChange( Rigidbody rigidbody, Vector3 accumulatedTorqueWorldSpace, float timeStep )
+    public static Vector3 CalculateRigidBodyAngularVelocityChange( Rigidbody rigidbody, Vector3 accumulatedTorqueWorldSpace, float timeStep )
 	{
 		//
 		// context:
